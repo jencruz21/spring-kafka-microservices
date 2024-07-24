@@ -1,10 +1,18 @@
 package org.jencruz.library_events_producer.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.Consumer;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.common.serialization.IntegerDeserializer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.assertj.core.api.Assertions;
 import org.jencruz.library_events_producer.dto.Book;
 import org.jencruz.library_events_producer.dto.LibraryEvent;
 import org.jencruz.library_events_producer.dto.LibraryEventType;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,16 +37,20 @@ import java.util.Map;
 })
 public class LibraryEventsControllerTest {
 
+    private LibraryEvent libraryEvent;
+
     @Autowired
     private TestRestTemplate restTemplate;
 
+    @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
     @Autowired
     private EmbeddedKafkaBroker kafkaBroker;
 
-    @Autowired
     private Consumer<Integer, String> consumer;
 
-    private LibraryEvent libraryEvent;
+    @Autowired
+    private ObjectMapper objectMapper;
+    
 
     @BeforeEach
     public void setUp() {
@@ -56,8 +68,17 @@ public class LibraryEventsControllerTest {
                 .book(book)
                 .build();
 
-        var config = new HashMap<>(KafkaTestUtils.consumerProps("group1", "true", kafkaBroker));
-        consumer = new DefaultKafkaConsumerFactory<Integer, String>(config).createConsumer();
+        Map<String, Object> config = new HashMap<>(KafkaTestUtils.consumerProps("group1", "true", kafkaBroker));
+        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "latest");
+        consumer = new DefaultKafkaConsumerFactory<Integer, String>(config, new IntegerDeserializer(), new StringDeserializer())
+                .createConsumer();
+
+        kafkaBroker.consumeFromAllEmbeddedTopics(consumer);
+    }
+
+    @AfterEach
+    void tearDown() {
+        consumer.close();
     }
 
     @Test
@@ -73,5 +94,17 @@ public class LibraryEventsControllerTest {
         Assertions.assertThat(response).isNotNull();
         Assertions.assertThat(response.getBody()).isEqualTo(entity.getBody());
         Assertions.assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+
+        ConsumerRecords<Integer, String> record = KafkaTestUtils.getRecords(consumer);
+        assert record.count() == 1;
+
+        record.forEach(integerStringConsumerRecord -> {
+            try {
+                LibraryEvent result = objectMapper.readValue(integerStringConsumerRecord.value(), LibraryEvent.class);
+                Assertions.assertThat(result).isEqualTo(libraryEvent);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 }
