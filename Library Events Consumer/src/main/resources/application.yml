@@ -1,0 +1,79 @@
+spring:
+  application:
+    name: Library Events Consumer
+  profiles:
+    active: dev
+  datasource:
+    url: jdbc:h2:mem:library-events
+    driver-class-name: org.h2.Driver
+    username: root
+    password:
+  jpa:
+    database: h2
+    database-platform: org.hibernate.dialect.H2Dialect
+    generate-ddl: true
+  h2:
+    console:
+      enabled: true
+server:
+  port: 8081
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: dev
+  kafka:
+    consumer:
+      bootstrap-servers:
+        - "localhost:9091"
+        - "localhost:9092"
+        - "localhost:9093"
+      key-deserializer: org.apache.kafka.common.serialization.IntegerDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        ack: -1
+        retries: 10
+        retry.backoff.ms: 1000
+      group-id: "library-events-consumer-id"
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: test
+  kafka:
+    consumer:
+      bootstrap-servers:
+        - "localhost:9091"
+        - "localhost:9092"
+        - "localhost:9093"
+      key-deserializer: org.apache.kafka.common.serialization.IntegerDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        ack: -1
+        retries: 10
+        retry.backoff.ms: 1000
+      group-id: "library-events-consumer-id"
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  kafka:
+    consumer:
+      bootstrap-servers:
+        - "localhost:9091"
+        - "localhost:9092"
+        - "localhost:9093"
+      key-deserializer: org.apache.kafka.common.serialization.IntegerDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        ack: -1
+        retries: 10
+        retry.backoff.ms: 1000
+      group-id: "library-events-consumer-id"
